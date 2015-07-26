@@ -2,6 +2,11 @@
 
 A Go library for creating Dropbox backed photo sites.
 
+The library queries a Dropbox folder for files, caches images in memory, and
+polls for new images. HTTP Handlers are provided to serve the image files and to
+return a list of photos as JSON (ordered by EXIF created at time).
+
+This is used by a couple of my sites. It is not supported and offered as-is.
 
 Example
 -------
@@ -31,6 +36,8 @@ func main() {
   log.Fatal(http.ListenAndServe(":8080", nil))
 }
 ```
+
+Generate tokens using Dropbox's [App Console](https://www.dropbox.com/developers/apps).
 
 Contributing
 ------------

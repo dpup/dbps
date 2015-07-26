@@ -1,5 +1,9 @@
 // Copyright 2015 Daniel Pupius
 
+// Package dbps provides a utility for creating Dropbox backed photo sites. The
+// library queries a Dropbox folder for files, caches images in memory, and
+// polls for new images. HTTP handlers are provided that serve the images and
+// returns a list of photos as JSON.
 package dbps
 
 import (
