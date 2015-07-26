@@ -24,7 +24,7 @@ type Album struct {
 	fetcher *fetcher.Fetcher
 
 	lastHash  string
-	photoList PhotoList
+	photoList photoList
 	photoMap  map[string]Photo
 	loading   bool
 	mu        sync.RWMutex
@@ -81,7 +81,7 @@ func (a *Album) Load() error {
 
 	var wg sync.WaitGroup
 
-	photos := make(PhotoList, len(entry.Contents))
+	photos := make(photoList, len(entry.Contents))
 	for i, e := range entry.Contents {
 		name := path.Base(e.Path)
 		clientModified := time.Time(e.ClientMtime)
@@ -149,10 +149,10 @@ func (a *Album) Photo(name string) (Photo, []byte, error) {
 }
 
 // Photos returns a copy of the PhotoList.
-func (a *Album) Photos() PhotoList {
+func (a *Album) Photos() []Photo {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	c := make(PhotoList, len(a.photoList))
+	c := make(photoList, len(a.photoList))
 	copy(c, a.photoList)
 	return c
 }

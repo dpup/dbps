@@ -17,7 +17,7 @@ func (j *jsonHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Cache-Control", "max-age=180, public, must-revalidate, proxy-revalidate")
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	js, _ := json.Marshal(struct {
-		Photos PhotoList
+		Photos photoList
 	}{
 		Photos: j.album.Photos(),
 	})
