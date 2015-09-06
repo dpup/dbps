@@ -39,3 +39,22 @@ func (p *photoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.ServeContent(w, r, photo.Filename, photo.DropboxModified, bytes.NewReader(data))
 	}
 }
+
+// Writes an image to the response, resizing it based on query params.
+type thumbnailHandler struct {
+	album *Album
+}
+
+func (p *thumbnailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// TODO: get width/height from querystring.
+	photo, data, err := p.album.Thumbnail(r.URL.Path, 200, 200)
+	if err != nil {
+		// TODO(dan): Nicer error pages.
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Header().Add("Cache-Control", "max-age=864000, public, must-revalidate, proxy-revalidate")
+	http.ServeContent(w, r, "thumb"+photo.Filename, photo.DropboxModified, bytes.NewReader(data))
+
+}

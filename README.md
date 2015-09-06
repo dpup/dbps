@@ -31,13 +31,26 @@ func main() {
   })
 
   http.Handle("/photos.json", p.DataHandler)
-  http.Handle("/images/", http.StripPrefix("/images/", p.PhotoHandler))
+  http.Handle("/photos/", http.StripPrefix("/photos/", p.PhotoHandler))
+  http.Handle("/thumbnails/", http.StripPrefix("/thumbnails/", p.ThumbnailHandler))
 
   log.Fatal(http.ListenAndServe(":8080", nil))
 }
 ```
 
 Generate tokens using Dropbox's [App Console](https://www.dropbox.com/developers/apps).
+
+Dependencies
+------------
+
+We use [bimg](https://github.com/h2non/bimg/) for resizing which depends on
+[libvips](https://github.com/jcupitt/libvips).
+
+    brew install vips
+
+If you get an error about libxml2 try:
+
+    export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/opt/libxml2/lib/pkgconfig
 
 Contributing
 ------------

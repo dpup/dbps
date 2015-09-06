@@ -15,6 +15,8 @@ import (
 	"github.com/dpup/dbps/fetcher"
 	"github.com/dpup/dbps/internal/dropbox"
 	"github.com/dpup/dbps/internal/goexif/exif"
+
+	"github.com/dpup/dbps/internal/bimg"
 )
 
 // Album queries dropbox and keeps a list of photos in date order.
@@ -138,11 +140,34 @@ func (a *Album) FirstPhoto() Photo {
 	return a.photoList[0]
 }
 
-// Photo returns the metadata for a photo or an error if it doesn't exist.
+// Photo returns the metadata for a photo and the image data, or an error if it doesn't exist.
 func (a *Album) Photo(name string) (Photo, []byte, error) {
 	if photo, ok := a.photoMap[name]; ok {
 		data, err := a.fetcher.Get(name)
 		return photo, data, err
+	} else {
+		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
+	}
+}
+
+// Thumbnail returns the metadata for a photo and a thumbnail, or an error if it doesn't exist.
+func (a *Album) Thumbnail(name string, width, height int) (Photo, []byte, error) {
+	if photo, ok := a.photoMap[name]; ok {
+		data, err := a.fetcher.Get(name)
+
+		// TODO: This is pretty fast, but should still cache resized version.
+		resized, err := bimg.NewImage(data).Process(bimg.Options{
+			Width:   width,
+			Height:  height,
+			Embed:   true,
+			Crop:    true,
+			Quality: 95,
+		})
+		if err != nil {
+			return Photo{}, nil, fmt.Errorf("album: unable to resize %s: %s", name, err)
+		}
+
+		return photo, resized, err
 	} else {
 		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
 	}

@@ -24,9 +24,10 @@ type Config struct {
 }
 
 type PhotoSite struct {
-	DataHandler  http.Handler
-	PhotoHandler http.Handler
-	Album        *Album
+	DataHandler      http.Handler
+	PhotoHandler     http.Handler
+	ThumbnailHandler http.Handler
+	Album            *Album
 }
 
 // NewPhotoSite fetches data about a photo album from DropBox and monitors for changes.
@@ -57,6 +58,7 @@ func NewPhotoSite(config Config) *PhotoSite {
 	return &PhotoSite{
 		&jsonHandler{album},
 		&photoHandler{album},
+		&thumbnailHandler{album},
 		album,
 	}
 }
