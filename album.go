@@ -6,13 +6,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"path"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/dpup/dbps/fetcher"
+	"github.com/dpup/dbps/cache"
 	"github.com/dpup/dbps/internal/dropbox"
 	"github.com/dpup/dbps/internal/goexif/exif"
 
@@ -21,9 +22,10 @@ import (
 
 // Album queries dropbox and keeps a list of photos in date order.
 type Album struct {
-	folder  string
-	dropbox *dropbox.Dropbox
-	fetcher *fetcher.Fetcher
+	folder    string
+	dropbox   *dropbox.Dropbox
+	original  *cache.Cache
+	thumbnail *cache.Cache
 
 	lastHash  string
 	photoList photoList
@@ -32,8 +34,11 @@ type Album struct {
 	mu        sync.RWMutex
 }
 
-func NewAlbum(folder string, dropbox *dropbox.Dropbox, fetcher *fetcher.Fetcher) *Album {
-	return &Album{folder: folder, dropbox: dropbox, fetcher: fetcher}
+func NewAlbum(folder string, dropbox *dropbox.Dropbox) *Album {
+	a := &Album{folder: folder, dropbox: dropbox}
+	a.original = cache.New(folder+" : original", a.fetchOriginal)
+	a.thumbnail = cache.New(folder+" : thumb", a.fetchThumbnail)
+	return a
 }
 
 // Monitor starts a go routine which calls Load() every interval to pick up new
@@ -105,7 +110,8 @@ func (a *Album) Load() error {
 			}
 
 			wg.Add(1)
-			a.fetcher.Remove(name)
+			a.original.Remove(name)
+			a.thumbnail.Remove(name)
 			go a.loadExifInfo(&photos[i], &wg)
 
 		} else {
@@ -143,7 +149,7 @@ func (a *Album) FirstPhoto() Photo {
 // Photo returns the metadata for a photo and the image data, or an error if it doesn't exist.
 func (a *Album) Photo(name string) (Photo, []byte, error) {
 	if photo, ok := a.photoMap[name]; ok {
-		data, err := a.fetcher.Get(name)
+		data, err := a.original.Get(name)
 		return photo, data, err
 	} else {
 		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
@@ -151,23 +157,11 @@ func (a *Album) Photo(name string) (Photo, []byte, error) {
 }
 
 // Thumbnail returns the metadata for a photo and a thumbnail, or an error if it doesn't exist.
-func (a *Album) Thumbnail(name string, width, height int) (Photo, []byte, error) {
+func (a *Album) Thumbnail(name string) (Photo, []byte, error) {
 	if photo, ok := a.photoMap[name]; ok {
-		data, err := a.fetcher.Get(name)
-
-		// TODO: This is pretty fast, but should still cache resized version.
-		resized, err := bimg.NewImage(data).Process(bimg.Options{
-			Width:   width,
-			Height:  height,
-			Embed:   true,
-			Crop:    true,
-			Quality: 95,
-		})
-		if err != nil {
-			return Photo{}, nil, fmt.Errorf("album: unable to resize %s: %s", name, err)
-		}
-
-		return photo, resized, err
+		// TODO: allow variable width/height thumbnails.
+		data, err := a.thumbnail.Get(name)
+		return photo, data, err
 	} else {
 		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
 	}
@@ -182,10 +176,38 @@ func (a *Album) Photos() []Photo {
 	return c
 }
 
+func (a *Album) fetchOriginal(key string) ([]byte, error) {
+	// TODO(dan): Add timeout, Download gets stuck.
+	log.Printf("album: fetching %s", key)
+	reader, _, err := a.dropbox.Download(path.Join(a.folder, key), "", 0)
+	if err != nil {
+		return []byte{}, err
+	}
+	return ioutil.ReadAll(reader)
+}
+
+func (a *Album) fetchThumbnail(key string) ([]byte, error) {
+	data, err := a.original.Get(key)
+	if err == nil {
+		log.Printf("album: resizing %s", key)
+		resized, err := bimg.NewImage(data).Process(bimg.Options{
+			Width:   200,
+			Height:  200,
+			Embed:   true,
+			Crop:    true,
+			Quality: 95,
+		})
+		if err == nil {
+			return resized, nil
+		}
+	}
+	return []byte{}, err
+}
+
 func (a *Album) loadExifInfo(p *Photo, wg *sync.WaitGroup) {
 	defer func() { wg.Done() }()
 
-	data, err := a.fetcher.Get(p.Filename)
+	data, err := a.original.Get(p.Filename)
 	if err != nil {
 		log.Printf("album: error renewing cache for %s: %s", p, err)
 		return
@@ -204,5 +226,4 @@ func (a *Album) loadExifInfo(p *Photo, wg *sync.WaitGroup) {
 	}
 
 	p.ExifCreated = t
-	log.Printf("album: loaded %s", p)
 }

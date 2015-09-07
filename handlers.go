@@ -47,7 +47,7 @@ type thumbnailHandler struct {
 
 func (p *thumbnailHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: get width/height from querystring.
-	photo, data, err := p.album.Thumbnail(r.URL.Path, 200, 200)
+	photo, data, err := p.album.Thumbnail(r.URL.Path)
 	if err != nil {
 		// TODO(dan): Nicer error pages.
 		http.Error(w, err.Error(), 500)

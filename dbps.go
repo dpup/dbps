@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dpup/dbps/fetcher"
 	"github.com/dpup/dbps/internal/dropbox"
 )
 
@@ -36,8 +35,7 @@ func NewPhotoSite(config Config) *PhotoSite {
 	db.SetAppInfo(config.DropBoxClientID, config.DropBoxClientSecret)
 	db.SetAccessToken(config.DropBoxAccessToken)
 
-	f := fetcher.New(config.PhotoFolder, db)
-	album := NewAlbum(config.PhotoFolder, db, f)
+	album := NewAlbum(config.PhotoFolder, db)
 
 	pf := time.Second * 30
 	if config.PollFreq > 0 {
