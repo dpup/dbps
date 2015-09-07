@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"image"
 	"image/jpeg"
+	"math"
 
 	_ "image/gif"
 	_ "image/png"
@@ -21,13 +22,23 @@ func Resize(data []byte) ([]byte, error) {
 		return nilBytes, err
 	}
 
-	r := resize.Thumbnail(200, 200, img, resize.Bicubic)
+	b := img.Bounds()
+	s := math.Min(float64(b.Dx()), float64(b.Dy()))
+	x := int(float64(b.Dx())/2 - s/2)
+	y := int(float64(b.Dy())/2 - s/2)
 
-	var b bytes.Buffer
-	err = jpeg.Encode(&b, r, &jpeg.Options{95})
+	subImg := img.(interface {
+		SubImage(r image.Rectangle) image.Image
+	})
+
+	squareImg := subImg.SubImage(image.Rect(x, y, x+int(s), y+int(s)))
+	resizedImg := resize.Thumbnail(200, 200, squareImg, resize.Bicubic)
+
+	var buf bytes.Buffer
+	err = jpeg.Encode(&buf, resizedImg, &jpeg.Options{95})
 	if err != nil {
 		return nilBytes, err
 	}
 
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
