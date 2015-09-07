@@ -16,8 +16,6 @@ import (
 	"github.com/dpup/dbps/cache"
 	"github.com/dpup/dbps/internal/dropbox"
 	"github.com/dpup/dbps/internal/goexif/exif"
-
-	"github.com/dpup/dbps/internal/bimg"
 )
 
 // Album queries dropbox and keeps a list of photos in date order.
@@ -190,13 +188,7 @@ func (a *Album) fetchThumbnail(key string) ([]byte, error) {
 	data, err := a.original.Get(key)
 	if err == nil {
 		log.Printf("album: resizing %s", key)
-		resized, err := bimg.NewImage(data).Process(bimg.Options{
-			Width:   200,
-			Height:  200,
-			Embed:   true,
-			Crop:    true,
-			Quality: 95,
-		})
+		resized, err := Resize(data)
 		if err == nil {
 			return resized, nil
 		}
