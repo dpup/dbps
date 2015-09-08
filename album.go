@@ -20,10 +20,9 @@ import (
 
 // Album queries dropbox and keeps a list of photos in date order.
 type Album struct {
-	folder    string
-	dropbox   *dropbox.Dropbox
-	original  *cache.Cache
-	thumbnail *cache.Cache
+	folder  string
+	dropbox *dropbox.Dropbox
+	cache   *cache.Cache
 
 	lastHash  string
 	photoList photoList
@@ -33,9 +32,9 @@ type Album struct {
 }
 
 func NewAlbum(folder string, dropbox *dropbox.Dropbox) *Album {
-	a := &Album{folder: folder, dropbox: dropbox}
-	a.original = cache.New(folder+" : original", a.fetchOriginal)
-	a.thumbnail = cache.New(folder+" : thumb", a.fetchThumbnail)
+	a := &Album{folder: folder, dropbox: dropbox, cache: cache.New(folder)}
+	a.cache.RegisterFetcher(a.fetchOriginal)
+	a.cache.RegisterFetcher(a.fetchThumbnail)
 	return a
 }
 
@@ -108,8 +107,7 @@ func (a *Album) Load() error {
 			}
 
 			wg.Add(1)
-			a.original.Remove(name)
-			a.thumbnail.Remove(name)
+			a.cache.Remove(originalCacheKey{name})
 			go a.loadExifInfo(&photos[i], &wg)
 
 		} else {
@@ -147,7 +145,7 @@ func (a *Album) FirstPhoto() Photo {
 // Photo returns the metadata for a photo and the image data, or an error if it doesn't exist.
 func (a *Album) Photo(name string) (Photo, []byte, error) {
 	if photo, ok := a.photoMap[name]; ok {
-		data, err := a.original.Get(name)
+		data, err := a.cache.Get(originalCacheKey{name})
 		return photo, data, err
 	} else {
 		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
@@ -155,10 +153,9 @@ func (a *Album) Photo(name string) (Photo, []byte, error) {
 }
 
 // Thumbnail returns the metadata for a photo and a thumbnail, or an error if it doesn't exist.
-func (a *Album) Thumbnail(name string) (Photo, []byte, error) {
+func (a *Album) Thumbnail(name string, width, height uint) (Photo, []byte, error) {
 	if photo, ok := a.photoMap[name]; ok {
-		// TODO: allow variable width/height thumbnails.
-		data, err := a.thumbnail.Get(name)
+		data, err := a.cache.Get(thumbCacheKey{name, width, height})
 		return photo, data, err
 	} else {
 		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
@@ -174,32 +171,10 @@ func (a *Album) Photos() []Photo {
 	return c
 }
 
-func (a *Album) fetchOriginal(key string) ([]byte, error) {
-	// TODO(dan): Add timeout, Download gets stuck.
-	log.Printf("album: fetching %s", key)
-	reader, _, err := a.dropbox.Download(path.Join(a.folder, key), "", 0)
-	if err != nil {
-		return []byte{}, err
-	}
-	return ioutil.ReadAll(reader)
-}
-
-func (a *Album) fetchThumbnail(key string) ([]byte, error) {
-	data, err := a.original.Get(key)
-	if err == nil {
-		log.Printf("album: resizing %s", key)
-		resized, err := Resize(data)
-		if err == nil {
-			return resized, nil
-		}
-	}
-	return []byte{}, err
-}
-
 func (a *Album) loadExifInfo(p *Photo, wg *sync.WaitGroup) {
 	defer func() { wg.Done() }()
 
-	data, err := a.original.Get(p.Filename)
+	data, err := a.cache.Get(originalCacheKey{p.Filename})
 	if err != nil {
 		log.Printf("album: error renewing cache for %s: %s", p, err)
 		return
@@ -218,4 +193,50 @@ func (a *Album) loadExifInfo(p *Photo, wg *sync.WaitGroup) {
 	}
 
 	p.ExifCreated = t
+}
+
+func (a *Album) fetchOriginal(key originalCacheKey) ([]byte, error) {
+	// TODO(dan): Add timeout, Download gets stuck.
+	filename := key.Filename
+	log.Printf("album: fetching %s", filename)
+	reader, _, err := a.dropbox.Download(path.Join(a.folder, filename), "", 0)
+	if err != nil {
+		return []byte{}, err
+	}
+	return ioutil.ReadAll(reader)
+}
+
+func (a *Album) fetchThumbnail(key thumbCacheKey) ([]byte, error) {
+	data, err := a.cache.Get(originalCacheKey{key.Filename})
+	if err != nil {
+		return []byte{}, err
+	}
+	log.Printf("album: resizing %s", key.Filename)
+	return Resize(data, key.Width, key.Height)
+}
+
+type originalCacheKey struct {
+	Filename string
+}
+
+func (t originalCacheKey) Dependencies() []cache.CacheKey {
+	return cache.NoDeps
+}
+
+func (o originalCacheKey) String() string {
+	return o.Filename
+}
+
+type thumbCacheKey struct {
+	Filename string
+	Width    uint
+	Height   uint
+}
+
+func (t thumbCacheKey) Dependencies() []cache.CacheKey {
+	return []cache.CacheKey{originalCacheKey{t.Filename}}
+}
+
+func (t thumbCacheKey) String() string {
+	return fmt.Sprintf("%s@%dx%d", t.Filename, t.Width, t.Height)
 }
