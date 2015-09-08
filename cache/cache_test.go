@@ -33,7 +33,7 @@ func (d derived) String() string {
 	return fmt.Sprintf("%s x %d", d.Name, d.Times)
 }
 
-func TestGetRemove(t *testing.T) {
+func TestGetInvalidate(t *testing.T) {
 	c := New("test1")
 	i := 0
 	c.RegisterFetcher(func(key original) ([]byte, error) {
@@ -58,7 +58,7 @@ func TestGetRemove(t *testing.T) {
 		t.Errorf("Expected fetcher to be called twice, was called %d times", i)
 	}
 
-	c.Remove(original{"Hello"})
+	c.Invalidate(original{"Hello"})
 
 	c.Get(original{"Hello"})
 	c.Get(original{"Goodbye"})
@@ -100,16 +100,16 @@ func TestDependentGet(t *testing.T) {
 		t.Errorf("Expected derived fetcher to be called twice, was called %d times", di)
 	}
 
-	// TODO: uncomment when Remove invalidates dependent entries.
-	// c.Remove(original{"HI"})
-	// c.Get(derived{"HI", 2})
+	// Invalidating 'original' should also invalidate entry for 'derived'.
+	c.Invalidate(original{"HI"})
+	c.Get(derived{"HI", 2})
 
-	// if oi != 2 {
-	// 	t.Errorf("Expected original fetcher to be called twice, was called %d times", oi)
-	// }
-	// if di != 3 {
-	// 	t.Errorf("Expected derived fetcher to be called thrice, was called %d times", di)
-	// }
+	if oi != 2 {
+		t.Errorf("Expected original fetcher to be called twice, was called %d times", oi)
+	}
+	if di != 3 {
+		t.Errorf("Expected derived fetcher to be called thrice, was called %d times", di)
+	}
 }
 
 func TestBadFetcher_noArgs(t *testing.T) {

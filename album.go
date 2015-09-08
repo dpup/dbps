@@ -107,7 +107,7 @@ func (a *Album) Load() error {
 			}
 
 			wg.Add(1)
-			a.cache.Remove(originalCacheKey{name})
+			a.cache.Invalidate(originalCacheKey{name})
 			go a.loadExifInfo(&photos[i], &wg)
 
 		} else {

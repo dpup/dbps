@@ -106,14 +106,30 @@ func (c *Cache) Get(key CacheKey) ([]byte, error) {
 	return entry.bytes, entry.err
 }
 
-// Remove takes an entry out of the cache.
-func (c *Cache) Remove(key CacheKey) bool {
+// Invalidate removes an entry from the cache.
+func (c *Cache) Invalidate(key CacheKey) bool {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
+	return c.invalidate(key)
+}
+
+func (c *Cache) invalidate(key CacheKey) bool {
 	if entry, ok := c.cache[key]; ok {
 		c.cacheSize.Add(int64(-len(entry.bytes)))
 		delete(c.cache, key)
+		c.invalidateDependents(key)
 		return true
 	}
 	return false
+}
+
+func (c *Cache) invalidateDependents(key CacheKey) {
+	// TODO: this can be optimized.
+	for k, _ := range c.cache {
+		for _, dep := range k.Dependencies() {
+			if dep == key {
+				c.invalidate(k)
+			}
+		}
+	}
 }
