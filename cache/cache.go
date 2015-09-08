@@ -43,20 +43,12 @@ func New(name string) *Cache {
 func (c *Cache) RegisterFetcher(fn interface{}) {
 	v := reflect.ValueOf(fn)
 	t := v.Type()
-	if t.Kind() != reflect.Func {
-		panic(fmt.Sprintf("cache: Fetcher must be a function, got [%v]", t))
-	}
-	if t.NumIn() != 1 {
-		panic(fmt.Sprintf("cache: Fetcher must be function with one arg, has %d [%v]", t.NumIn(), t))
-	}
-	if t.NumOut() != 2 || t.Out(0) != byteArrayType || t.Out(1) != errorType {
-		panic(fmt.Sprintf("cache: Fetcher must be function that returns ([]byte, error), has %d [%v]", t.NumOut(), t))
-	}
+	assertValidFetcher(t)
 
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 
-	// Map the argument type to the listener.
+	// Map the argument type to the fetcher.
 	arg := t.In(0)
 	c.fetchers[arg] = v
 }
@@ -77,20 +69,7 @@ func (c *Cache) Get(key CacheKey) ([]byte, error) {
 	c.cache[key] = entry
 	c.cacheLock.Unlock()
 
-	// Use reflection to look up the right fetcher, then request the data.
-	v := reflect.ValueOf(key)
-	t := v.Type()
-	if fetcher, ok := c.fetchers[t]; ok {
-		values := fetcher.Call([]reflect.Value{v})
-		// We've already verified types should be correct.
-		entry.bytes = values[0].Bytes()
-		if values[1].Interface() != nil {
-			entry.err = values[1].Interface().(error)
-		}
-	} else {
-		panic(fmt.Sprintf("cache: No fetcher function for type [%v]", t))
-	}
-
+	entry.bytes, entry.err = c.fetch(key)
 	entry.wg.Done()
 
 	c.cacheLock.Lock()
@@ -106,7 +85,7 @@ func (c *Cache) Get(key CacheKey) ([]byte, error) {
 	return entry.bytes, entry.err
 }
 
-// Invalidate removes an entry from the cache.
+// Invalidate removes an entry, and any entries that depend on it, from the cache.
 func (c *Cache) Invalidate(key CacheKey) bool {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
@@ -131,5 +110,34 @@ func (c *Cache) invalidateDependents(key CacheKey) {
 				c.invalidate(k)
 			}
 		}
+	}
+}
+
+// fetch uses reflection to look up the right fetcher, then requests the data.
+func (c *Cache) fetch(key CacheKey) ([]byte, error) {
+	v := reflect.ValueOf(key)
+	t := v.Type()
+	if fetcher, ok := c.fetchers[t]; ok {
+		values := fetcher.Call([]reflect.Value{v})
+		// We've already verified types should be correct.
+		if values[1].Interface() != nil {
+			return []byte{}, values[1].Interface().(error)
+		} else {
+			return values[0].Bytes(), nil
+		}
+	} else {
+		panic(fmt.Sprintf("cache: No fetcher function for type [%v]", t))
+	}
+}
+
+func assertValidFetcher(t reflect.Type) {
+	if t.Kind() != reflect.Func {
+		panic(fmt.Sprintf("cache: Fetcher must be a function, got [%v]", t))
+	}
+	if t.NumIn() != 1 {
+		panic(fmt.Sprintf("cache: Fetcher must be function with one arg, has %d [%v]", t.NumIn(), t))
+	}
+	if t.NumOut() != 2 || t.Out(0) != byteArrayType || t.Out(1) != errorType {
+		panic(fmt.Sprintf("cache: Fetcher must be function that returns ([]byte, error), has %d [%v]", t.NumOut(), t))
 	}
 }
