@@ -40,6 +40,9 @@ func New(name string) *Cache {
 	}
 }
 
+// RegisterFetcher registers a fetcher function which the cache will use to load
+// data on a cache miss. The function should have a single argument, a type that
+// implements the CacheKey interface. The return value should be ([]byte error).
 func (c *Cache) RegisterFetcher(fn interface{}) {
 	v := reflect.ValueOf(fn)
 	t := v.Type()
