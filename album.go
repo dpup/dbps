@@ -5,6 +5,7 @@ package dbps
 import (
 	"bytes"
 	"errors"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -35,6 +36,11 @@ func NewAlbum(folder string, dropbox *dropbox.Dropbox) *Album {
 	a := &Album{folder: folder, dropbox: dropbox, cache: cache.New(folder)}
 	a.cache.RegisterFetcher(a.fetchOriginal)
 	a.cache.RegisterFetcher(a.fetchThumbnail)
+
+	expvar.Publish(fmt.Sprintf("photos (%s)", folder), expvar.Func(func() interface{} {
+		return a.photoMap
+	}))
+
 	return a
 }
 

@@ -4,6 +4,7 @@ package cache
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -170,4 +171,38 @@ func TestBadFetcher_badReturn4(t *testing.T) {
 	}()
 	c := New("test8")
 	c.RegisterFetcher(func(a original) []byte { return []byte{} })
+}
+
+var runs = 0
+
+func BenchmarkCacheWithMisses(b *testing.B) {
+	runs++
+	c := New("bench" + strconv.Itoa(runs))
+	c.RegisterFetcher(func(key original) ([]byte, error) {
+		return []byte(key.Name), nil
+	})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Get(original{strconv.Itoa(i)})
+	}
+}
+
+func BenchmarkCacheWithHits(b *testing.B) {
+	runs++
+	c := New("bench" + strconv.Itoa(runs))
+	c.RegisterFetcher(func(key original) ([]byte, error) {
+		return []byte(key.Name), nil
+	})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Get(original{"1"})
+	}
+}
+
+func BenchmarkNormalMapWithMisses(b *testing.B) {
+	m := make(map[original][]byte)
+	for i := 0; i < b.N; i++ {
+		name := strconv.Itoa(i)
+		m[original{name}] = []byte(name)
+	}
 }
