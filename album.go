@@ -14,16 +14,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dpup/dbps/cache"
 	"github.com/dpup/dbps/internal/dropbox"
 	"github.com/dpup/dbps/internal/goexif/exif"
+	"github.com/dpup/rcache"
 )
 
 // Album queries dropbox and keeps a list of photos in date order.
 type Album struct {
 	folder  string
 	dropbox *dropbox.Dropbox
-	cache   *cache.Cache
+	cache   *rcache.Cache
 
 	lastHash  string
 	photoList photoList
@@ -33,7 +33,7 @@ type Album struct {
 }
 
 func NewAlbum(folder string, dropbox *dropbox.Dropbox) *Album {
-	a := &Album{folder: folder, dropbox: dropbox, cache: cache.New(folder)}
+	a := &Album{folder: folder, dropbox: dropbox, cache: rcache.New(folder)}
 	a.cache.RegisterFetcher(a.fetchOriginal)
 	a.cache.RegisterFetcher(a.fetchThumbnail)
 
@@ -225,8 +225,8 @@ type originalCacheKey struct {
 	Filename string
 }
 
-func (t originalCacheKey) Dependencies() []cache.CacheKey {
-	return cache.NoDeps
+func (t originalCacheKey) Dependencies() []rcache.CacheKey {
+	return rcache.NoDeps
 }
 
 func (o originalCacheKey) String() string {
@@ -239,8 +239,8 @@ type thumbCacheKey struct {
 	Height   uint
 }
 
-func (t thumbCacheKey) Dependencies() []cache.CacheKey {
-	return []cache.CacheKey{originalCacheKey{t.Filename}}
+func (t thumbCacheKey) Dependencies() []rcache.CacheKey {
+	return []rcache.CacheKey{originalCacheKey{t.Filename}}
 }
 
 func (t thumbCacheKey) String() string {
