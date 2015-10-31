@@ -23,7 +23,7 @@ import (
 type Album struct {
 	folder  string
 	dropbox *dropbox.Dropbox
-	cache   *rcache.Cache
+	cache   rcache.Cache
 
 	lastHash  string
 	photoList photoList
@@ -113,7 +113,7 @@ func (a *Album) Load() error {
 			}
 
 			wg.Add(1)
-			a.cache.Invalidate(originalCacheKey{name})
+			a.cache.Invalidate(originalCacheKey{name}, true)
 			go a.loadExifInfo(&photos[i], &wg)
 
 		} else {
