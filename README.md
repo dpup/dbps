@@ -40,18 +40,6 @@ func main() {
 
 Generate tokens using Dropbox's [App Console](https://www.dropbox.com/developers/apps).
 
-Dependencies
-------------
-
-We use [bimg](https://github.com/h2non/bimg/) for resizing which depends on
-[libvips](https://github.com/jcupitt/libvips).
-
-    brew install vips
-
-If you get an error about libxml2 try:
-
-    export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/opt/libxml2/lib/pkgconfig
-
 Contributing
 ------------
 This is not really intended for mass use, but if you do have questions,
