@@ -225,10 +225,6 @@ type originalCacheKey struct {
 	Filename string
 }
 
-func (t originalCacheKey) Dependencies() []rcache.CacheKey {
-	return rcache.NoDeps
-}
-
 func (o originalCacheKey) String() string {
 	return o.Filename
 }
@@ -239,8 +235,8 @@ type thumbCacheKey struct {
 	Height   uint
 }
 
-func (t thumbCacheKey) Dependencies() []rcache.CacheKey {
-	return []rcache.CacheKey{originalCacheKey{t.Filename}}
+func (t thumbCacheKey) Dependencies() []interface{} {
+	return []interface{}{originalCacheKey{t.Filename}}
 }
 
 func (t thumbCacheKey) String() string {
