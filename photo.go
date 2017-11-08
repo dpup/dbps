@@ -10,7 +10,6 @@ import (
 // Metadata for the photo.
 type Photo struct {
 	Filename        string
-	MimeType        string
 	Size            int
 	Hash            string    `json:"-"`
 	DropboxModified time.Time `json:"-"`

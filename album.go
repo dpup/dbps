@@ -22,17 +22,17 @@ import (
 // Album queries dropbox and keeps a list of photos in date order.
 type Album struct {
 	folder  string
-	dropbox *dropbox.Dropbox
+	dropbox *dropbox.Client
 	cache   rcache.Cache
 
-	lastHash  string
 	photoList photoList
 	photoMap  map[string]Photo
 	loading   bool
 	mu        sync.RWMutex
 }
 
-func NewAlbum(folder string, dropbox *dropbox.Dropbox) *Album {
+// NewAlbum returns a new Album
+func NewAlbum(folder string, dropbox *dropbox.Client) *Album {
 	a := &Album{folder: folder, dropbox: dropbox, cache: rcache.New(folder)}
 	a.cache.RegisterFetcher(a.fetchOriginal)
 	a.cache.RegisterFetcher(a.fetchThumbnail)
@@ -74,44 +74,38 @@ func (a *Album) Load() error {
 	defer func() { a.loading = false }()
 	a.mu.Unlock()
 
-	entry, err := a.dropbox.Metadata(a.folder, true, false, a.lastHash, "", 5000)
-
-	if dbError, ok := err.(*dropbox.Error); ok && dbError.StatusCode == 304 {
-		log.Println("album: no metadata changes detected")
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("album: failed to get metadata: %s", err)
-	}
-
-	if !entry.IsDir {
-		return errors.New("album: provided path was not a directory")
-	}
-
 	log.Println("album: loading image metadata")
 
+	f, err := a.dropbox.Files.ListFolder(&dropbox.ListFolderInput{
+		Path:             a.folder,
+		Limit:            2000,
+		IncludeMediaInfo: true,
+	})
+	if err != nil {
+		return fmt.Errorf("album: failed to list files: %s", err)
+	}
+
+	files := f.Entries
+
 	var wg sync.WaitGroup
+	photos := make(photoList, len(files))
 
-	photos := make(photoList, len(entry.Contents))
-	for i, e := range entry.Contents {
-		name := path.Base(e.Path)
-		clientModified := time.Time(e.ClientMtime)
-		dropboxModified := time.Time(e.Modified)
-
-		// e.Hash is empty so use own approximation.
-		hash := fmt.Sprintf("%d:%d:%d", e.Bytes, clientModified.Unix(), dropboxModified.Unix())
+	c := 0
+	for i, e := range files {
+		name := path.Base(e.PathLower)
 
 		// If no entry exists, or the entry is stale, then load the photo to get its
 		// exif data. Loads are done in parallel.
-		if old, ok := a.photoMap[name]; !ok || old.Hash != hash {
+		if old, ok := a.photoMap[name]; !ok || old.Hash != e.ContentHash {
 			photos[i] = Photo{
 				Filename:        name,
-				MimeType:        e.MimeType,
-				Size:            e.Bytes,
-				Hash:            hash,
-				DropboxModified: dropboxModified,
-				ExifCreated:     clientModified, // Default to the last modified time.
+				Size:            int(e.Size),
+				Hash:            e.ContentHash,
+				DropboxModified: e.ServerModified,
+				ExifCreated:     e.ClientModified, // Default to the last modified time.
 			}
 
+			c++
 			wg.Add(1)
 			a.cache.Invalidate(originalCacheKey{name}, true)
 			go a.loadExifInfo(&photos[i], &wg)
@@ -120,8 +114,11 @@ func (a *Album) Load() error {
 			photos[i] = old
 		}
 	}
-
-	log.Printf("album: waiting for new images to load")
+	if c > 0 {
+		log.Printf("album: waiting for new images to load")
+	} else {
+		log.Printf("album: no new images")
+	}
 	wg.Wait()
 	sort.Sort(photos)
 
@@ -130,7 +127,6 @@ func (a *Album) Load() error {
 	// asking for deleted items and checking entry.IsDeleted
 
 	a.mu.Lock()
-	a.lastHash = entry.Hash
 	a.photoList = photos
 	a.photoMap = make(map[string]Photo)
 	for _, p := range photos {
@@ -153,9 +149,8 @@ func (a *Album) Photo(name string) (Photo, []byte, error) {
 	if photo, ok := a.photoMap[name]; ok {
 		data, err := a.cache.Get(originalCacheKey{name})
 		return photo, data, err
-	} else {
-		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
 	}
+	return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
 }
 
 // Thumbnail returns the metadata for a photo and a thumbnail, or an error if it doesn't exist.
@@ -163,9 +158,8 @@ func (a *Album) Thumbnail(name string, width, height uint) (Photo, []byte, error
 	if photo, ok := a.photoMap[name]; ok {
 		data, err := a.cache.Get(thumbCacheKey{name, width, height})
 		return photo, data, err
-	} else {
-		return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
 	}
+	return Photo{}, nil, fmt.Errorf("album: no photo with name: %s", name)
 }
 
 // Photos returns a copy of the PhotoList.
@@ -205,11 +199,13 @@ func (a *Album) fetchOriginal(key originalCacheKey) ([]byte, error) {
 	// TODO(dan): Add timeout, Download gets stuck.
 	filename := key.Filename
 	log.Printf("album: fetching %s", filename)
-	reader, _, err := a.dropbox.Download(path.Join(a.folder, filename), "", 0)
+	resp, err := a.dropbox.Files.Download(&dropbox.DownloadInput{
+		Path: path.Join(a.folder, filename),
+	})
 	if err != nil {
 		return []byte{}, err
 	}
-	return ioutil.ReadAll(reader)
+	return ioutil.ReadAll(resp.Body)
 }
 
 func (a *Album) fetchThumbnail(key thumbCacheKey) ([]byte, error) {

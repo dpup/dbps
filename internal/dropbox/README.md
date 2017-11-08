@@ -1,79 +1,25 @@
-dropbox
-=======
-Go client library for the Dropbox core and Datastore API with support for uploading and downloading encrypted files.
 
-Support of the Datastore API should be considered as a beta version.
+[![GoDoc](https://godoc.org/github.com/tj/go-dropbox?status.svg)](https://godoc.org/github.com/tj/go-dropbox) [![Build Status](https://semaphoreci.com/api/v1/projects/bc0bfd8b-73c9-45ba-b988-00f9e285e6ef/617305/badge.svg)](https://semaphoreci.com/tj/go-dropbox)
 
-Prerequisite
-------------
-To use this library, you must have a valid client ID (app key) and client secret (app secret) provided by Dropbox.<br>
-To register a new client application, please visit https://www.dropbox.com/developers/apps/create
+# Dropbox
 
-Installation
-------------
-This library depends on the oauth2 package, it can be installed with the go get command:
+ Simple Dropbox v2 client for Go.
 
-    $ go get golang.org/x/oauth2
+ For a higher level client take a look at [go-dropy](https://github.com/tj/go-dropy).
 
-This package can be installed with the go get command:
+## About
 
-    $ go get github.com/stacktic/dropbox
+ Modelled more or less 1:1 with the API for consistency and parity with the [official documentation](https://www.dropbox.com/developers/documentation/http). More sugar should be implemented on top.
 
+## Testing
 
-Examples
---------
-This simple 4-step example will show you how to create a folder:
+ To manually run tests use the test account access token:
 
-    package main
+```
+$ export DROPBOX_ACCESS_TOKEN=oENFkq_oIVAAAAAAAAAAC8gE3wIUFMEraPBL-D71Aq2C4zuh1l4oDn5FiWSdVVlL
+$ go test -v
+```
 
-    import (
-        "dropbox"
-        "fmt"
-    )
+# License
 
-    func main() {
-        var err error
-        var db *dropbox.Dropbox
-
-        var clientid, clientsecret string
-        var token string
-
-        clientid = "xxxxx"
-        clientsecret = "yyyyy"
-        token = "zzzz"
-
-        // 1. Create a new dropbox object.
-        db = dropbox.NewDropbox()
-
-        // 2. Provide your clientid and clientsecret (see prerequisite).
-        db.SetAppInfo(clientid, clientsecret)
-
-        // 3. Provide the user token.
-        db.SetAccessToken(token)
-
-        // 4. Send your commands.
-        // In this example, you will create a new folder named "demo".
-        folder := "demo"
-        if _, err = db.CreateFolder(folder); err != nil {
-            fmt.Printf("Error creating folder %s: %s\n", folder, err)
-        } else {
-            fmt.Printf("Folder %s successfully created\n", folder)
-        }
-    }
-
-If you do not know the user token, you can replace step 3 by a call to the Auth method:
-
-        // This method will ask the user to visit an URL and paste the generated code.
-        if err = db.Auth(); err != nil {
-            fmt.Println(err)
-            return
-        }
-        // You can now retrieve the token if you want.
-        token = db.AccessToken()
-
-If you want a more complete example, please check the following project: https://github.com/stacktic/dbox.
-
-Documentation
--------------
-
-API documentation can be found here: http://godoc.org/github.com/stacktic/dropbox.
+MIT

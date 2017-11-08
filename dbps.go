@@ -14,14 +14,14 @@ import (
 	"github.com/dpup/dbps/internal/dropbox"
 )
 
+// Config defines how to access the site.
 type Config struct {
-	DropBoxClientID     string
-	DropBoxClientSecret string
-	DropBoxAccessToken  string
-	PhotoFolder         string
-	PollFreq            time.Duration
+	DropBoxAccessToken string
+	PhotoFolder        string
+	PollFreq           time.Duration
 }
 
+// PhotoSite provides functionality for binding to your own server mux.
 type PhotoSite struct {
 	DataHandler      http.Handler
 	PhotoHandler     http.Handler
@@ -31,11 +31,8 @@ type PhotoSite struct {
 
 // NewPhotoSite fetches data about a photo album from DropBox and monitors for changes.
 func NewPhotoSite(config Config) *PhotoSite {
-	db := dropbox.NewDropbox()
-	db.SetAppInfo(config.DropBoxClientID, config.DropBoxClientSecret)
-	db.SetAccessToken(config.DropBoxAccessToken)
-
-	album := NewAlbum(config.PhotoFolder, db)
+	d := dropbox.New(dropbox.NewConfig(config.DropBoxAccessToken))
+	album := NewAlbum(config.PhotoFolder, d)
 
 	pf := time.Second * 30
 	if config.PollFreq > 0 {
